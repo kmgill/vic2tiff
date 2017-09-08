@@ -137,7 +137,19 @@ def get_vic_min_max(input_file):
     return pixel_min, pixel_max
 
 
-def vic2tif(input_file, force_input_min=None, force_input_max=None, fill_null_stripes=False):
+def histeq(pixel_matrix, nbr_bins=65536):
+    im = pixel_matrix
+    imhist, bins = np.histogram(im.flatten(), nbr_bins, normed=True)
+    cdf = imhist.cumsum()  # cumulative distribution function
+    cdf = 65535 * cdf / cdf[-1]  # normalize
+
+    # use linear interpolation of cdf to find new pixel values
+    im2 = np.interp(im.flatten(), bins[:-1], cdf)
+    im2 = im2.reshape(im.shape)
+
+    return np.array(im2, np.uint16)
+
+def vic2tif(input_file, force_input_min=None, force_input_max=None, fill_null_stripes=False, fillsat=False, dohisteq=False, minpercent=None, maxpercent=None):
 
     pixel_matrix, value_pairs = load_vic(input_file)
     if pixel_matrix is None or value_pairs is None:
@@ -160,12 +172,34 @@ def vic2tif(input_file, force_input_min=None, force_input_max=None, fill_null_st
         stripes = detect_null_stripes(pixel_matrix)
         fill_stripes(pixel_matrix, stripes)
 
-    inds = np.where(np.isnan(pixel_matrix))
-    pixel_matrix[inds] = pixel_max
+    if fillsat is True:
+        inds = np.where(np.isnan(pixel_matrix))
+        pixel_matrix[inds] = pixel_max
 
-    pixel_matrix += abs(pixel_min)
-    pixel_matrix *= 65534.0/pixel_max
+    # The min/max percent stuff isn't correct. TODO: Make it correct.
+    if minpercent is not None:
+        diff = pixel_min + ((pixel_max - pixel_min) * (minpercent / 100.0))
+        print "Min:", diff
+        pixel_matrix[pixel_matrix < diff] = diff
+        pixel_min = diff
+
+    if maxpercent is not None:
+        diff = pixel_min + ((pixel_max - pixel_min) * (maxpercent / 100.0))
+        print "Max:", diff
+        pixel_matrix[pixel_matrix > diff] = diff
+        pixel_max = diff
+
+    pixel_matrix = pixel_matrix - pixel_min
+    pixel_matrix = pixel_matrix / (pixel_max - pixel_min)
+    pixel_matrix[pixel_matrix < 0] = 0
+
+    # Format for UInt16
+    pixel_matrix = pixel_matrix * 65535.0
     pixel_matrix = pixel_matrix.astype(np.uint16)
+    #print pixel_matrix.min(), pixel_matrix.max()
+
+    if dohisteq is True:
+        pixel_matrix = histeq(pixel_matrix)
 
     output_filename = build_output_filename(value_pairs)
     print "Writing", output_filename
@@ -182,12 +216,21 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--data", help="Input VICAR files", required=True, type=str, nargs='+')
     parser.add_argument("-i", "--intensity", help="Match intensities when stretching", required=False, action="store_true")
     parser.add_argument("-f", "--fill", help="Fill null stripes", required=False, action="store_true")
+    parser.add_argument("-s", "--fillsat", help="Fill saturated pixels to match max value", required=False, action="store_true")
+    parser.add_argument("-e", "--histeq", help="Apply histogram equalization", required=False,action="store_true")
+    parser.add_argument("-x", "--maxpercent", help="Clamp values to maximum percent (0-100)", type=float, default=None)
+    parser.add_argument("-n", "--minpercent", help="Clamp values to minimum percent (0-100)", type=float, default=None)
+
 
     args = parser.parse_args()
 
     input_files = args.data
     match_intensities = args.intensity
     fill = args.fill
+    fillsat = args.fillsat
+    dohisteq = args.histeq
+    maxpercent = args.maxpercent
+    minpercent = args.minpercent
 
     if len(input_files) < 1:
         print "Please specify vicar file to convert"
@@ -206,4 +249,12 @@ if __name__ == "__main__":
         input_max = np.array(values).max()
 
     for input_file in input_files:
-        vic2tif(input_file, force_input_min=input_min, force_input_max=input_max, fill_null_stripes=fill)
+        vic2tif(input_file,
+                force_input_min=input_min,
+                force_input_max=input_max,
+                fill_null_stripes=fill,
+                fillsat=fillsat,
+                dohisteq=dohisteq,
+                minpercent=minpercent,
+                maxpercent=maxpercent
+                )
