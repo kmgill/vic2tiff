@@ -28,15 +28,12 @@ def detect_null_stripes(pixel_matrix):
     height = pixel_matrix.shape[0]
     width = pixel_matrix.shape[1]
 
-    for y in range(501, height-1, 2):
+    for y in range(0, height-1, 1):
         for x in range(width - 2, -1, -1):
-
             pixel_value_prev_row = pixel_matrix[y-1][x]
             pixel_value = pixel_matrix[y][x]
             pixel_value_next_row = pixel_matrix[y+1][x]
-            #if pixel_value == 0.0 and pixel_value_prev_row != 0.0 and pixel_value_next_row != 0.0:
-            #    print pixel_value_prev_row, pixel_value, pixel_value_next_row
-            if pixel_value != 0.0 and pixel_value_prev_row != 0.0 and pixel_value_next_row != 0.0:
+            if not np.isnan(pixel_value) and pixel_value != 0.0 and pixel_value_prev_row != 0.0 and pixel_value_next_row != 0.0:
                 if x < width - 2:
                     stripes.append((y, x+1))
                 break
@@ -54,8 +51,6 @@ def fill_stripe(pixel_matrix, row, start_x):
 def fill_stripes(pixel_matrix, stripes):
     for stripe in stripes:
         fill_stripe(pixel_matrix, stripe[0], stripe[1])
-
-
 
 
 def get_vic_min_max(input_file):
@@ -98,13 +93,10 @@ def vic2tif(input_file, force_input_min=None, force_input_max=None, fill_null_st
 
     print "Minimum Native:", pixel_min, "Maximum Native:", pixel_max
 
+
     if fill_null_stripes is True:
         stripes = detect_null_stripes(pixel_matrix)
         fill_stripes(pixel_matrix, stripes)
-
-    if fillsat is True:
-        inds = np.where(np.isnan(pixel_matrix))
-        pixel_matrix[inds] = pixel_max
 
     # The min/max percent stuff isn't correct. TODO: Make it correct.
     if minpercent is not None:
@@ -118,6 +110,12 @@ def vic2tif(input_file, force_input_min=None, force_input_max=None, fill_null_st
         print "Max:", diff
         pixel_matrix[pixel_matrix > diff] = diff
         pixel_max = diff
+
+
+
+    if fillsat is True:
+        inds = np.where(np.isnan(pixel_matrix))
+        pixel_matrix[inds] = pixel_max
 
     pixel_matrix = pixel_matrix - pixel_min
     pixel_matrix = pixel_matrix / (pixel_max - pixel_min)
