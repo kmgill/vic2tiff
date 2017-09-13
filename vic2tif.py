@@ -111,11 +111,9 @@ def vic2tif(input_file, force_input_min=None, force_input_max=None, fill_null_st
         pixel_matrix[pixel_matrix > diff] = diff
         pixel_max = diff
 
-
-
     if fillsat is True:
         inds = np.where(np.isnan(pixel_matrix))
-        pixel_matrix[inds] = pixel_max
+        pixel_matrix[inds] = np.nanmax(pixel_matrix)
 
     pixel_matrix = pixel_matrix - pixel_min
     pixel_matrix = pixel_matrix / (pixel_max - pixel_min)
