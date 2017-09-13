@@ -5,6 +5,7 @@ import numpy as np
 from libtiff import TIFFimage
 import argparse
 import vicar
+from scipy.misc import imresize
 
 # This is Cassini-specific!
 def build_output_filename(value_pairs):
@@ -74,7 +75,15 @@ def histeq(pixel_matrix, nbr_bins=65536):
 
     return np.array(im2, np.uint16)
 
-def vic2tif(input_file, force_input_min=None, force_input_max=None, fill_null_stripes=False, fillsat=False, dohisteq=False, minpercent=None, maxpercent=None):
+def vic2tif(input_file,
+            force_input_min=None,
+            force_input_max=None,
+            fill_null_stripes=False,
+            fillsat=False,
+            dohisteq=False,
+            minpercent=None,
+            maxpercent=None,
+            resize=None):
 
     pixel_matrix, value_pairs = vicar.load_vic(input_file)
     if pixel_matrix is None or value_pairs is None:
@@ -127,6 +136,9 @@ def vic2tif(input_file, force_input_min=None, force_input_max=None, fill_null_st
     if dohisteq is True:
         pixel_matrix = histeq(pixel_matrix)
 
+    if resize is not None:
+        pixel_matrix = imresize(pixel_matrix, size=resize, interp='bicubic')
+
     output_filename = build_output_filename(value_pairs)
     print "Writing", output_filename
 
@@ -146,6 +158,7 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--histeq", help="Apply histogram equalization", required=False,action="store_true")
     parser.add_argument("-x", "--maxpercent", help="Clamp values to maximum percent (0-100)", type=float, default=None)
     parser.add_argument("-n", "--minpercent", help="Clamp values to minimum percent (0-100)", type=float, default=None)
+    parser.add_argument("-r", "--resize", help="Resize image to WidthxHeight", type=str, default=None)
 
 
     args = parser.parse_args()
@@ -157,6 +170,12 @@ if __name__ == "__main__":
     dohisteq = args.histeq
     maxpercent = args.maxpercent
     minpercent = args.minpercent
+    resize = args.resize
+
+    if resize is not None:
+        # TODO: Actually validate this
+        resize = map(int, resize.split("x"))
+        print resize
 
     if len(input_files) < 1:
         print "Please specify vicar file to convert"
@@ -182,5 +201,6 @@ if __name__ == "__main__":
                 fillsat=fillsat,
                 dohisteq=dohisteq,
                 minpercent=minpercent,
-                maxpercent=maxpercent
+                maxpercent=maxpercent,
+                resize=resize
                 )
