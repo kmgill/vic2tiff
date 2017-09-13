@@ -175,7 +175,6 @@ if __name__ == "__main__":
     if resize is not None:
         # TODO: Actually validate this
         resize = map(int, resize.split("x"))
-        print resize
 
     if len(input_files) < 1:
         print "Please specify vicar file to convert"
